@@ -1,0 +1,209 @@
+Public constr As String
+Public con As New ADODB.Connection
+Public rs As New ADODB.Recordset
+Public t1, t2 As Date
+Public t3 As Double
+Public LDG, SDB, PRD As String
+
+Public Sub interogari()
+'ini param
+ini_param
+         
+
+con.Open "DSN=;DATABASE=;UID=;PWD="
+Debug.Print constr
+rs.Open constr, con
+
+'delete old data
+delete_old
+
+If rs.BOF = True Or rs.EOF = True Then GoTo errorhandler1
+Cells(2, 1).CopyFromRecordset rs
+
+'final wrap
+put_header
+final_wrap
+
+
+t2 = Time
+t3 = DateDiff("s", t1, t2)
+MsgBox "Complete!" & vbCrLf & "in " & t3 & " sec...", vbInformation, "ARP - Interogari multicriteriale"
+       'Int(t3 / 60) & "minutes : " & t3 - Int(t3 / 60) & "seconds"
+
+'Cleaning up.
+    rs.Close
+    con.Close
+    Set rs = Nothing
+    Set con = Nothing
+
+Exit Sub
+
+errorhandler1:
+    'Range("D1:M1").ClearContents
+    MsgBox "Nu existã înregistrãri !" & vbCrLf & vbError & " ", vbCritical, "ARP - Error message"
+
+'Cleaning up.
+clean_up
+     
+End Sub
+
+Private Sub ini_param()
+t1 = Time
+Select Case UserForm2.cboDB
+ Case Is = "A01"
+  LDG = "SALFLDGA01"
+  SDB = "A01"
+ Case Is = "A02"
+  LDG = "SALFLDGA02"
+  SDB = "A02"
+ Case Is = "T01"
+  LDG = "SALFLDGT01"
+  SDB = "T01"
+ Case Is = "T02"
+  LDG = "SALFLDGT02"
+  SDB = "T02"
+ Case Is = "TCS"
+  LDG = "SABFLDGTCS"
+  SDB = "TCS"
+ Case Is = "TPR"
+  LDG = "SABFLDGT02"
+  SDB = "T02"
+  Case Is = "SCC"
+  LDG = "SALFLDGSCC"
+  SDB = "SCC"
+ Case Else
+  MsgBox "Nu este un cod de baza eligibil!" & vbCrLf & "Try again!", vbCritical
+End Select
+
+AC1 = UserForm2.cboAcc1
+AC2 = UserForm2.cboAcc2
+PRD1 = UserForm2.cboPRD1
+PRD2 = UserForm2.cboPRD2
+DT1 = UserForm2.cboDT1
+DT2 = UserForm2.cboDT2
+RF1 = UserForm2.cboRF1
+RF2 = UserForm2.cboRF2
+JN1 = UserForm2.cboJN1
+JN2 = UserForm2.cboJN2
+JT1 = UserForm2.cboJT1
+JT2 = UserForm2.cboJT2
+ASS1 = UserForm2.cboASS1
+ASS2 = UserForm2.cboASS2
+Sheets("prm").Cells(1, 2) = SDB
+Sheets("prm").Cells(2, 2) = PRD1
+Sheets("prm").Cells(2, 3) = PRD2
+Sheets("prm").Cells(3, 2) = DT1
+Sheets("prm").Cells(3, 3) = DT2
+Sheets("prm").Cells(4, 2) = AC1
+Sheets("prm").Cells(4, 3) = AC2
+If UserForm2.chkSAL = True Then
+ JX1 = "AG03"
+ JX2 = "XG03"
+Else
+ JX1 = Null
+ JX2 = Null
+End If
+
+Unload UserForm2
+
+constr = "SELECT A.ACODE, B.ANAME, A.PRD, A.TD, A.AMT, A.DC, A.JT, A.JS, A.TREF, A.DESCR, A.CNV, A.OTH, A.T0, A.T1, A.T2, A.T3, A.T4, A.T5, A.T6, A.T7, A.T8, A.T9, A.AI, A.ASS, A.DD, A.ALC, A.AREF, A.JN, A.JL " & _
+"FROM (SELECT rtrim(ACCNT_CODE) ACODE, PERIOD PRD, TRANS_DATE TD, -AMOUNT AMT, D_C DC, JRNAL_NO JN, JRNAL_LINE JL, " & _
+         "rtrim(JRNAL_TYPE) JT, rtrim(JRNAL_SRCE) JS, rtrim(TREFERENCE) TREF, rtrim(DESCRIPTN) DESCR, rtrim(CONV_CODE) CNV , -OTHER_AMT OTH, " & _
+         "rtrim(ANAL_T0) T0, rtrim(ANAL_T1) T1, rtrim(ANAL_T2) T2, rtrim(ANAL_T3) T3, rtrim(ANAL_T4) T4, rtrim(ANAL_T5) T5, rtrim(ANAL_T6) T6, rtrim(ANAL_T7) T7, rtrim(ANAL_T8) T8, rtrim(ANAL_T9) T9, " & _
+         "ASSET_IND AI, rtrim(ASSET_CODE) ASS , DUE_DATE DD, ALLOCATION ALC, ALLOC_REF AREF " & _
+         "FROM " & LDG & " " & _
+         "WHERE ACCNT_CODE >= '" & AC1 & "' AND ACCNT_CODE <= '" & AC2 & "' AND " & _
+         "PERIOD between " & PRD1 & " AND " & PRD2 & " AND " & _
+         "TRANS_DATE >= " & DT1 & " AND TRANS_DATE <= " & DT2 & " AND " & _
+         "JRNAL_TYPE >= '" & JT1 & "' AND JRNAL_TYPE <= '" & JT2 & "' AND " & _
+         "JRNAL_TYPE NOT IN ('" & JX1 & "', '" & JX2 & "') AND " & _
+         "JRNAL_NO between " & JN1 & " AND " & JN2 & " AND " & _
+         "TREFERENCE >= '" & RF1 & "' AND TREFERENCE <= '" & RF2 & "'  AND " & _
+         "ASSET_CODE between '" & ASS1 & "' AND '" & ASS2 & "'  ) A " & _
+         "LEFT OUTER JOIN (SELECT RTRIM(ACCNT_CODE) ACODE, RTRIM(ACCNT_NAME) ANAME FROM SSRFACC WHERE SUN_DB = '" & SDB & "') B ON A.ACODE = B.ACODE ORDER BY A.JN, A.JL "
+
+
+End Sub
+Private Sub put_header()
+Cells(1, 1) = "Cont"
+Cells(1, 2) = "Denumire cont"
+Cells(1, 3) = "Perioada"
+Cells(1, 4) = "Data"
+Cells(1, 5) = "LEI"
+Cells(1, 6) = "D/C"
+Cells(1, 7) = "JType"
+Cells(1, 8) = "JSrce"
+Cells(1, 9) = "Referinta"
+Cells(1, 10) = "Descriere"
+Cells(1, 11) = "CodVal"
+Cells(1, 12) = "Valuta"
+Cells(1, 13) = "T0"
+Cells(1, 14) = "T1"
+Cells(1, 15) = "T2"
+Cells(1, 16) = "T3"
+Cells(1, 17) = "T4"
+Cells(1, 18) = "T5"
+Cells(1, 19) = "T6"
+Cells(1, 20) = "T7"
+Cells(1, 21) = "T8"
+Cells(1, 22) = "T9"
+Cells(1, 23) = "AInd"
+Cells(1, 24) = "AssetCode"
+Cells(1, 25) = "Scadenta"
+Cells(1, 26) = "Alloc"
+Cells(1, 27) = "All_ref"
+Cells(1, 28) = "JNo."
+Cells(1, 29) = "JLin."
+ 
+Range(Cells(1, 1), Cells(1, 30)).Select
+Selection.Font.Bold = True
+Selection.Font.Size = 12
+ With Selection.Interior
+        .Pattern = xlSolid
+        .PatternColorIndex = xlAutomatic
+        .Color = 65535
+        .TintAndShade = 0
+        .PatternTintAndShade = 0
+    End With
+
+End Sub
+
+Private Sub final_wrap()
+Columns("E:E").Select
+Selection.NumberFormat = "#,##0.00"
+Columns("L:L").Select
+Selection.NumberFormat = "#,##0.00"
+Cells.EntireColumn.AutoFit
+Cells(1, 1).Activate
+
+End Sub
+
+Private Sub clean_up()
+    rs.Close
+    con.Close
+    Set rs = Nothing
+    Set con = Nothing
+
+End Sub
+
+Private Sub delete_old()
+
+Sheets("ldg").Activate
+ numofrows = Range("A1").Offset(ActiveSheet.Rows.Count - 1, 0).End(xlUp).Row
+If numofrows < 2 Then
+ numofrows = 2
+Else
+End If
+
+Range("A2:AZ" & numofrows).Select
+Selection.Delete
+'Selection.Font.Bold = False
+'Selection.Font.Size = 8
+Range("A2").Select
+Application.StatusBar = " "
+
+End Sub
+
+
+
+
