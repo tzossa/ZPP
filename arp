@@ -1,0 +1,305 @@
+Public Sub BALANTZA_analitica()
+' vers modif 12/07/16
+'AND DEF_BANK_CODE <> 'XXXXX'  scoasa pt rulare din urma
+
+
+Dim con As New ADODB.Connection
+Dim rs As New ADODB.Recordset
+Dim rs1 As New ADODB.Recordset
+Dim constr As String, constr2 As String, ConnectionString As String
+Dim t1 As Date, t2 As Date
+Dim t3 As Double
+Dim LDG As String, SDB As String, AC1 As String, AC2 As String, P1 As String, PRD As String, SOY As String
+Dim NewBook As Workbook
+Dim A As Integer, B As Integer, i As Integer, W As Integer
+
+t1 = Time
+A = 2
+B = 2
+SDB = UserForm1.cboDB.Value
+LDG = "SALFLDG" & UserForm1.cboDB
+PRD = UserForm1.cboPRD.Value
+SOY = Trim(Left(UserForm1.cboPRD.Value, 4)) & "001"
+
+Sheets("prm").Cells(1, 7) = SDB
+Sheets("prm").Cells(2, 7) = UserForm1.cboAcc1
+Sheets("prm").Cells(2, 8) = UserForm1.cboAcc2
+Sheets("prm").Cells(3, 7) = PRD
+
+
+con.CommandTimeout = 600
+
+ConnectionString = "Provider=SQLOLEDB.1;Password=;Persist Security Info=True;User ID=LAS;Data Source=;Use Procedure for Prepare=1;Auto Translate=True;Packet Size=4096;Use Encryption for Data=False;Tag with column collation when possible=False;Initial Catalog="
+con.Open ConnectionString
+
+
+'OPEN NEW wb
+   Set NewBook = Workbooks.Add
+
+    With NewBook
+        .Title = "BALANTA " & UserForm1.cboBAL.Value & " @" & PRD
+        .Subject = "BALANTA " & PRD
+        .SaveAs fileName:=SDB & "_BALANTA " & UserForm1.cboBAL.Value & "_" & UserForm1.cboAcc1.Value & "-" & UserForm1.cboAcc2.Value & "_@" & PRD & ".xlsx"
+    End With
+
+'set active
+ NewBook.Worksheets(1).Activate
+ 
+ Application.ScreenUpdating = False
+'ANALITICA
+If UserForm1.cboBAL.Value = "Analitica" Then
+
+For i = UserForm1.cboAcc1.Value To UserForm1.cboAcc2.Value
+If i < 6 Then
+ constr = "SELECT RTRIM(SF.ACODE), RTRIM(SF.ANAME), COALESCE(SI.SID,0) SSID, COALESCE(SI.SIC,0) SSIC, COALESCE(RC.SRCD,0) RRCD, COALESCE(RC.SRCC,0) RRCC, COALESCE(SI.SID,0) + COALESCE(YT.SYTD,0) YYTD, COALESCE(SI.SIC,0) + COALESCE(YT.SYTC,0) YYTC, COALESCE(SF.SFD,0) SSFD,  COALESCE(SF.SFC,0) SSFC " & _
+ "FROM (SELECT W.ACODE, W.ANAME, SFD = CASE WHEN (SUM(W.AMT)<=0)THEN -1*SUM(W.AMT) ELSE 0 END, SFC = CASE WHEN (SUM(W.AMT)>0) THEN SUM(W.AMT) ELSE 0 END FROM (SELECT Y.ACODE, Y.ANAME, Z.AMOUNT AMT FROM (SELECT ACCNT_CODE ACODE, RTRIM(ACCNT_NAME)+RTRIM(COMMENTS) ANAME FROM SSRFACC WHERE SUN_DB = '" & SDB & "' AND ACCNT_CODE LIKE '" & i & "%') Y   LEFT OUTER JOIN (SELECT ACCNT_CODE ACODE, AMOUNT FROM " & LDG & " WHERE ALLOCATION <> 'C' AND PERIOD <= " & PRD & ") Z ON Y.ACODE = Z.ACODE) W GROUP BY W.ACODE, W.ANAME ) SF " & _
+ "LEFT OUTER JOIN (SELECT W.ACODE, SID = CASE WHEN (SUM(W.AMT)<=0)THEN -1*SUM(W.AMT) ELSE 0 END, SIC = CASE WHEN (SUM(W.AMT)>0) THEN SUM(W.AMT) ELSE 0 END FROM (SELECT Y.ACODE, Z.AMOUNT AMT FROM (SELECT ACCNT_CODE ACODE FROM SSRFACC WHERE SUN_DB = '" & SDB & "' AND ACCNT_CODE LIKE '" & i & "%') Y LEFT OUTER JOIN (SELECT ACCNT_CODE ACODE, AMOUNT FROM " & LDG & " WHERE ALLOCATION <> 'C' AND PERIOD < " & SOY & ") Z ON Y.ACODE = Z.ACODE) W GROUP BY W.ACODE) SI ON SF.ACODE = SI.ACODE " & _
+ "LEFT OUTER JOIN (SELECT IRC.IACODE ACODE, SUM(IRC.RCD) AS SRCD, SUM(IRC.RCC) AS SRCC FROM (SELECT ACCNT_CODE IACODE, RCD = CASE WHEN (LEFT(JRNAL_TYPE,1) + D_C IN ('AD', 'XC', 'SD'))  THEN -1*AMOUNT ELSE 0 END, RCC = CASE WHEN (LEFT(JRNAL_TYPE,1) + D_C IN ('AC', 'XD', 'SC'))  THEN AMOUNT ELSE 0 END FROM " & LDG & " WHERE ALLOCATION <> 'C' AND PERIOD = " & PRD & "  AND ACCNT_CODE LIKE '" & i & "%') IRC GROUP BY  IRC.IACODE) RC ON SF.ACODE = RC.ACODE " & _
+ "LEFT OUTER JOIN (SELECT IYT.IACODE ACODE, SUM(IYT.YTD) AS SYTD, SUM(IYT.YTC) AS SYTC FROM (SELECT ACCNT_CODE IACODE, YTD = CASE WHEN (LEFT(JRNAL_TYPE,1) + D_C IN ('AD', 'XC', 'SD'))  THEN -1*AMOUNT ELSE 0 END, YTC = CASE WHEN (LEFT(JRNAL_TYPE,1) + D_C IN ('AC', 'XD', 'SC'))  THEN AMOUNT ELSE 0 END FROM " & LDG & " WHERE ALLOCATION <> 'C' AND PERIOD BETWEEN " & SOY & " AND " & PRD & " AND ACCNT_CODE LIKE '" & i & "%') IYT GROUP BY IYT.IACODE) YT ON SF.ACODE = YT.ACODE " & _
+ "ORDER BY SF.ACODE"
+Else
+constr = "SELECT RTRIM(SF.ACODE), RTRIM(SF.ANAME), 0 SSID, 0 SSIC, COALESCE(RC.SRCD,0) RRCD, COALESCE(RC.SRCC,0) RRCC, COALESCE(YT.SYTD,0) YYTD, COALESCE(YT.SYTC,0) YYTC, COALESCE(SF.SFD,0) SSFD,  COALESCE(SF.SFC,0) SSFC " & _
+ "FROM (SELECT W.ACODE, W.ANAME, SFD = CASE WHEN (SUM(W.AMT)<=0)THEN -1*SUM(W.AMT) ELSE 0 END, SFC = CASE WHEN (SUM(W.AMT)>0) THEN SUM(W.AMT) ELSE 0 END FROM (SELECT Y.ACODE, Y.ANAME, Z.AMOUNT AMT FROM (SELECT ACCNT_CODE ACODE, RTRIM(ACCNT_NAME)+RTRIM(COMMENTS) ANAME FROM SSRFACC WHERE SUN_DB = '" & SDB & "' AND  ACCNT_CODE LIKE '" & i & "%') Y   LEFT OUTER JOIN (SELECT ACCNT_CODE ACODE, AMOUNT FROM " & LDG & " WHERE ALLOCATION <> 'C' AND PERIOD BETWEEN " & SOY & " AND " & PRD & ") Z ON Y.ACODE = Z.ACODE) W GROUP BY W.ACODE, W.ANAME ) SF " & _
+ "LEFT OUTER JOIN (SELECT IRC.IACODE ACODE, SUM(IRC.RCD) AS SRCD, SUM(IRC.RCC) AS SRCC FROM (SELECT ACCNT_CODE IACODE, RCD = CASE WHEN (LEFT(JRNAL_TYPE,1) + D_C IN ('AD', 'XC', 'SD'))  THEN -1*AMOUNT ELSE 0 END, RCC = CASE WHEN (LEFT(JRNAL_TYPE,1) + D_C IN ('AC', 'XD', 'SC'))  THEN AMOUNT ELSE 0 END FROM " & LDG & " WHERE ALLOCATION <> 'C' AND PERIOD = " & PRD & "  AND ACCNT_CODE LIKE '" & i & "%') IRC GROUP BY  IRC.IACODE) RC ON SF.ACODE = RC.ACODE " & _
+ "LEFT OUTER JOIN (SELECT IYT.IACODE ACODE, SUM(IYT.YTD) AS SYTD, SUM(IYT.YTC) AS SYTC FROM (SELECT ACCNT_CODE IACODE, YTD = CASE WHEN (LEFT(JRNAL_TYPE,1) + D_C IN ('AD', 'XC', 'SD'))  THEN -1*AMOUNT ELSE 0 END, YTC = CASE WHEN (LEFT(JRNAL_TYPE,1) + D_C IN ('AC', 'XD', 'SC'))  THEN AMOUNT ELSE 0 END FROM " & LDG & " WHERE ALLOCATION <> 'C' AND PERIOD BETWEEN " & SOY & " AND " & PRD & " AND ACCNT_CODE LIKE '" & i & "%') IYT GROUP BY IYT.IACODE) YT ON SF.ACODE = YT.ACODE " & _
+ "ORDER BY SF.ACODE"
+ 
+End If
+
+
+'Debug.Print constr
+
+ rs.Open constr, con
+ Cells(A, 1).CopyFromRecordset rs
+ numofrows = Range("A1").Offset(ActiveSheet.Rows.Count - 1, 0).End(xlUp).Row
+ A = numofrows + 1
+ 'insert & format total
+ Cells(A, 2) = "Total Clasa " & i
+ For W = 3 To 10
+ Cells(A, W) = Application.WorksheetFunction.Sum(Range(Cells(B, W), Cells(A - 1, W)))
+ 'Range("C2", "C" & lngLastRow - 1)
+ Next W
+ Range(Cells(A, 2), Cells(A, 10)).Select
+  With Selection.Borders(xlEdgeTop)
+                  .LineStyle = xlContinuous
+                  .Weight = xlThin
+  End With
+  Selection.NumberFormat = "#,##0.00"
+  Selection.Font.Bold = True
+  Selection.Font.Size = 10
+ 'move down
+   A = A + 1
+   B = A
+ rs.Close
+Next i
+
+Else
+'SINTETICA
+For i = UserForm1.cboAcc1.Value To UserForm1.cboAcc2.Value
+
+For j = 1 To 599
+Sheets("sint").Activate
+k = Left(Cells(j, 1), 1) & Trim(Cells(j, 3))
+Select Case k
+Case Is = i & "x"
+acc = Trim(Cells(j, 1))
+ANM = Trim(Cells(j, 2))
+constr = "SELECT '" & acc & "' ACODE , '" & ANM & "' ANAME, COALESCE(SI.SID,0) SSID, COALESCE(SI.SIC,0) SSIC, COALESCE(RC.SRCD,0) RRCD, COALESCE(RC.SRCC,0) RRCC, COALESCE(SI.SID,0) + COALESCE(YT.SYTD,0) YYTD, COALESCE(SI.SIC,0) + COALESCE(YT.SYTC,0) YYTC, COALESCE(SF.SFD,0) SSFD,  COALESCE(SF.SFC,0) SSFC FROM " & _
+ "(SELECT SFD = CASE WHEN (SUM(W.AMT)<=0) THEN -1*SUM(W.AMT) ELSE 0 END, SFC = CASE WHEN (SUM(W.AMT)>0) THEN SUM(W.AMT) ELSE 0 END FROM (SELECT AMOUNT AMT FROM " & LDG & " WHERE ALLOCATION <> 'C' AND PERIOD <= " & PRD & " AND ACCNT_CODE LIKE '" & acc & "%') W ) SF , " & _
+ "(SELECT SID = CASE WHEN (SUM(W.AMT)<=0) THEN -1*SUM(W.AMT) ELSE 0 END, SIC = CASE WHEN (SUM(W.AMT)>0) THEN SUM(W.AMT) ELSE 0 END FROM (SELECT AMOUNT AMT FROM " & LDG & " WHERE ALLOCATION <> 'C' AND PERIOD < " & PRD & "  AND ACCNT_CODE LIKE '" & acc & "%') W ) SI , " & _
+ "(SELECT SUM(IRC.RCD) AS SRCD, SUM(IRC.RCC) AS SRCC FROM (SELECT RCD = CASE WHEN (LEFT(JRNAL_TYPE,1) + D_C IN ('AD', 'XC', 'SD'))  THEN -1*AMOUNT ELSE 0 END, " & _
+                         " RCC = CASE WHEN (LEFT(JRNAL_TYPE,1) + D_C IN ('AC', 'XD', 'SC'))  THEN AMOUNT ELSE 0 END " & _
+                         " FROM " & LDG & " WHERE ALLOCATION <> 'C' AND PERIOD = " & PRD & " AND ACCNT_CODE LIKE '" & acc & "%') IRC ) RC , " & _
+ "(SELECT SUM(IYT.YTD) AS SYTD, SUM(IYT.YTC) AS SYTC FROM (SELECT YTD = CASE WHEN (LEFT(JRNAL_TYPE,1) + D_C IN ('AD', 'XC', 'SD'))  THEN -1*AMOUNT ELSE 0 END, " & _
+                         " YTC = CASE WHEN (LEFT(JRNAL_TYPE,1) + D_C IN ('AC', 'XD', 'SC'))  THEN AMOUNT ELSE 0 END " & _
+                         " FROM " & LDG & " WHERE ALLOCATION <> 'C' AND PERIOD BETWEEN " & SOY & " AND " & PRD & " AND ACCNT_CODE LIKE '" & acc & "%') IYT) YT"
+ 
+ NewBook.Worksheets(1).Activate
+ rs.Open constr, con
+ Cells(A, 1).CopyFromRecordset rs
+ A = A + 1
+ rs.Close
+ Application.StatusBar = acc & "-" & ANM
+End Select
+
+
+Next j
+
+ NewBook.Worksheets(1).Activate
+ numofrows = Range("A1").Offset(ActiveSheet.Rows.Count - 1, 0).End(xlUp).Row
+ A = numofrows + 1
+ 'insert & format total
+ Cells(A, 2) = "Total Clasa " & i
+ For W = 3 To 10
+ Cells(A, W) = Application.WorksheetFunction.Sum(Range(Cells(B, W), Cells(A - 1, W)))
+ 'Range("C2", "C" & lngLastRow - 1)
+ Next W
+ Range(Cells(A, 2), Cells(A, 10)).Select
+  With Selection.Borders(xlEdgeTop)
+                  .LineStyle = xlContinuous
+                  .Weight = xlThin
+  End With
+  Selection.NumberFormat = "#,##0.00"
+  Selection.Font.Bold = True
+  Selection.Font.Size = 10
+ 'move down
+   A = A + 1
+   B = A
+
+Next i
+End If
+
+cleanup
+
+'format hdr
+Select Case UserForm1.cboDB
+Case Is = "T02"
+ comp = "TELEMOBIL SA"
+Case Is = "SCC"
+ comp = "DEUTSCHE TELEKOM SERVICES EUROPE ROMANIA SRL"
+End Select
+ActiveSheet.PageSetup.LeftHeader = "&9 " & comp & Chr(10) & "&8 Perioada: " & Left(PRD, 4) & "/" & Right(PRD, 3)
+ActiveSheet.PageSetup.CenterFooter = "&8&C Balanta " & UserForm1.cboBAL.Value & " cu Solduri Initiale"
+
+'wrapping up
+Application.ScreenUpdating = True
+t2 = Time
+t3 = DateDiff("s", t1, t2)
+Application.StatusBar = "Done in " & t3 & " seconds..."
+Unload UserForm1
+
+MsgBox "Done!", vbInformation, "Balante ARP v1.0"
+
+
+'Cleaning up.
+
+'    rs.Close
+    con.Close
+    Set rs = Nothing
+    Set con = Nothing
+
+Exit Sub
+
+errorhandler1:
+    MsgBox "Nu existã înregistrãri !", vbCritical, "balante -error"
+    Unload UserForm1
+
+'Cleaning up.
+ '   rs.Close
+    con.Close
+    Set rs = Nothing
+    Set con = Nothing
+  
+ End Sub
+Private Sub cleanup()
+
+    Const strTOFIND As Integer = 0#
+    
+    Dim lngLastRow As Long
+    Dim rngToCheck As Range
+    Dim numofrows As Long, i As Long
+    
+
+'zero elim
+' Application.ScreenUpdating = False
+     
+numofrows = Range("A1").Offset(ActiveSheet.Rows.Count - 1, 0).End(xlUp).Row
+Range("A2", "J" & numofrows).Select
+Selection.Font.Size = 9
+Selection.NumberFormat = "#,##0.00"
+For i = 2 To numofrows
+Cells(i, 11) = Abs(Cells(i, 3)) + Abs(Cells(i, 4)) + Abs(Cells(i, 5)) + Abs(Cells(i, 6)) + Abs(Cells(i, 7)) + Abs(Cells(i, 8)) + Abs(Cells(i, 9)) + Abs(Cells(i, 10))
+Next i
+   
+    With Sheet1
+        'find the last row in the Sheet
+        lngLastRow = Range("B1").Offset(Sheet1.Rows.Count - 1, 0).End(xlUp).Row
+    End With
+    
+     Set rngToCheck = Range("K1", "K9999")
+     With rngToCheck
+        .AutoFilter Field:=1, Criteria1:=strTOFIND
+        'assume the first row had headers
+        On Error Resume Next
+        .Offset(2, 0).Resize(.Rows.Count - 1, 1).SpecialCells(xlCellTypeVisible).EntireRow.Delete
+        On Error GoTo 0
+        'remove the autofilter
+        .AutoFilter
+    End With
+    
+    Range("K:K").Delete
+   
+   ' make all courier
+   Range("C3", "J" & lngLastRow).Select
+   Selection.Font.Name = "Calibri"
+   Selection.Font.Size = 9
+
+   'hdr row
+    Cells(1, 1) = "Cont"
+    Cells(1, 2) = "Denumire cont"
+    Cells(1, 3) = "Sold Initial" & Chr(10) & "Debitor"
+    Cells(1, 4) = "Sold Initial" & Chr(10) & "Creditor"
+    Cells(1, 5) = "Rulaj Curent" & Chr(10) & "Debitor"
+    Cells(1, 6) = "Rulaj Curent" & Chr(10) & "Creditor"
+    Cells(1, 7) = "Total Sume" & Chr(10) & "Debitoare"
+    Cells(1, 8) = "Total Sume" & Chr(10) & "Creditoare"
+    Cells(1, 9) = "Sold Final" & Chr(10) & "Debitor"
+    Cells(1, 10) = "Sold Final" & Chr(10) & "Creditor"
+    Range("A1", "J1").Select
+    Selection.Font.Size = 10
+    Selection.Font.Bold = True
+    Selection.Interior.ColorIndex = 6
+    Range("C1", "J1").Select
+    Selection.HorizontalAlignment = xlRight
+    
+
+    'total
+    lngLastRow = Range("B1").Offset(Sheet1.Rows.Count - 1, 0).End(xlUp).Row + 1
+    Cells(lngLastRow, 2) = "TOTAL BALANTA:"
+    Cells(lngLastRow, 3) = Application.WorksheetFunction.SumIf(Range("A2", "C" & lngLastRow - 1), "", Range("C2", "C" & lngLastRow - 1))
+    Cells(lngLastRow, 4) = Application.WorksheetFunction.SumIf(Range("A2", "D" & lngLastRow - 1), "", Range("D2", "D" & lngLastRow - 1))
+    Cells(lngLastRow, 5) = Application.WorksheetFunction.SumIf(Range("A2", "E" & lngLastRow - 1), "", Range("E2", "E" & lngLastRow - 1))
+    Cells(lngLastRow, 6) = Application.WorksheetFunction.SumIf(Range("A2", "F" & lngLastRow - 1), "", Range("F2", "F" & lngLastRow - 1))
+    Cells(lngLastRow, 7) = Application.WorksheetFunction.SumIf(Range("A2", "G" & lngLastRow - 1), "", Range("G2", "G" & lngLastRow - 1))
+    Cells(lngLastRow, 8) = Application.WorksheetFunction.SumIf(Range("A2", "H" & lngLastRow - 1), "", Range("H2", "H" & lngLastRow - 1))
+    Cells(lngLastRow, 9) = Application.WorksheetFunction.SumIf(Range("A2", "I" & lngLastRow - 1), "", Range("I2", "I" & lngLastRow - 1))
+    Cells(lngLastRow, 10) = Application.WorksheetFunction.SumIf(Range("A2", "J" & lngLastRow - 1), "", Range("J2", "J" & lngLastRow - 1))
+    Range("B" & lngLastRow, "J" & lngLastRow).Select
+    Selection.Font.Size = 10
+    Selection.Font.Bold = True
+    Selection.NumberFormat = "#,##0.00"
+    With Selection.Borders(xlEdgeTop)
+                  .LineStyle = xlDouble
+                 ' .Weight = xlThin
+   End With
+    
+    'hdr and ftr
+   With ActiveSheet.PageSetup
+    .LeftMargin = Application.InchesToPoints(0.3)
+    .RightMargin = Application.InchesToPoints(0.3)
+    .TopMargin = Application.InchesToPoints(0.75)
+    .BottomMargin = Application.InchesToPoints(0.75)
+    .HeaderMargin = Application.InchesToPoints(0.3)
+    .FooterMargin = Application.InchesToPoints(0.3)
+    .PrintTitleRows = "$1:$1"
+    .PrintArea = "A1:J" & lngLastRow
+    .Orientation = xlLandscape
+    .Zoom = 80
+    .FitToPagesWide = 1
+    .FitToPagesTall = 10
+    .LeftFooter = "&8 (c) 2017 INFOR SunSystems 4.x "
+    .RightFooter = "&8 Pag. &P din &N"
+   End With
+
+   Cells.EntireColumn.AutoFit
+
+    Application.ScreenUpdating = True
+  
+End Sub
+
+
+
+
+
+
+
